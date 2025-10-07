@@ -1,24 +1,5 @@
-const MAZE_BLUEPRINT = [
-  "###################",
-  "#....#.....#.....#",
-  "#.##.#.###.#.###.#",
-  "#.#..#.#...#...#.#",
-  "#.#.##.#.#####.#.#",
-  "#.#....#.....#.#.#",
-  "#.#####.###.#.#.#",
-  "#.....#...#.#...#",
-  "###.#.###.#.###.#",
-  "#...#.....#.....#",
-  "#.###.#####.###.#",
-  "#.#...#...#...#.#",
-  "#.###.#.#.#.###.#",
-  "#.....#.#.#.....#",
-  "###.###.#.###.###",
-  "#.........#.....#",
-  "#.#.#####.#.###.#",
-  "#.#.....#.#.....#",
-  "###################"
-];
+const MAZE_ROWS = 19;
+const MAZE_COLS = 19;
 
 const BUG_COUNT = 18;
 const PARTICLE_COUNT = 80;
@@ -34,7 +15,7 @@ export class Screensaver {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.maze = new Maze(MAZE_BLUEPRINT);
+  this.maze = new Maze(MAZE_ROWS, MAZE_COLS);
   this.debugger = new Debugger(this.maze);
 
   const seeded = new Set();
@@ -149,25 +130,108 @@ export class Screensaver {
 }
 
 class Maze {
-  constructor(template) {
-    this.rows = template.length;
-    this.cols = template.reduce((max, row) => Math.max(max, row.length), 0);
-    this.walls = template.map((row) => {
-      const cells = row.split("");
-      while (cells.length < this.cols) {
-        cells.push("#");
-      }
-      return cells;
-    });
-    this.pathCells = [];
+  constructor(rows, cols) {
+    this.rows = rows % 2 === 0 ? rows + 1 : rows;
+    this.cols = cols % 2 === 0 ? cols + 1 : cols;
+    this.walls = this.generateLayout();
+    this.pathCells = this.collectPathCells();
+  }
 
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.walls[r][c] !== "#") {
-          this.pathCells.push({ row: r, col: c });
+  generateLayout() {
+    const rows = this.rows;
+    const cols = this.cols;
+    const grid = Array.from({ length: rows }, () => Array(cols).fill("#"));
+
+    const start = { row: 1, col: 1 };
+    grid[start.row][start.col] = ".";
+
+    const stack = [start];
+    const carveDirs = [
+      { dr: 0, dc: 2 },
+      { dr: 0, dc: -2 },
+      { dr: 2, dc: 0 },
+      { dr: -2, dc: 0 }
+    ];
+
+    const shuffle = (array) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    };
+
+    while (stack.length) {
+      const current = stack[stack.length - 1];
+      const neighbors = shuffle(carveDirs.slice()).filter((dir) => {
+        const nr = current.row + dir.dr;
+        const nc = current.col + dir.dc;
+        return nr > 0 && nr < rows - 1 && nc > 0 && nc < cols - 1 && grid[nr][nc] === "#";
+      });
+
+      if (neighbors.length === 0) {
+        stack.pop();
+      } else {
+        const dir = neighbors[0];
+        const betweenRow = current.row + dir.dr / 2;
+        const betweenCol = current.col + dir.dc / 2;
+        const next = { row: current.row + dir.dr, col: current.col + dir.dc };
+        grid[betweenRow][betweenCol] = ".";
+        grid[next.row][next.col] = ".";
+        stack.push(next);
+      }
+    }
+
+    this.addLoops(grid, Math.floor((rows * cols) * 0.12));
+    this.addRooms(grid);
+    return grid;
+  }
+
+  addLoops(grid, attempts) {
+    const rows = grid.length;
+    const cols = grid[0].length;
+    for (let i = 0; i < attempts; i++) {
+      const r = 1 + Math.floor(Math.random() * (rows - 2));
+      const c = 1 + Math.floor(Math.random() * (cols - 2));
+      if (grid[r][c] !== "#") continue;
+
+      const vertical = grid[r - 1][c] === "." && grid[r + 1][c] === ".";
+      const horizontal = grid[r][c - 1] === "." && grid[r][c + 1] === ".";
+      if (vertical || horizontal) {
+        grid[r][c] = ".";
+      }
+    }
+  }
+
+  addRooms(grid) {
+    const rows = grid.length;
+    const cols = grid[0].length;
+    const radius = Math.floor(Math.min(rows, cols) / 6);
+    const centerRow = Math.floor(rows / 2);
+    const centerCol = Math.floor(cols / 2);
+
+    for (let r = centerRow - radius; r <= centerRow + radius; r++) {
+      for (let c = centerCol - radius; c <= centerCol + radius; c++) {
+        if (r > 0 && r < rows - 1 && c > 0 && c < cols - 1) {
+          const dist = Math.hypot(r - centerRow, c - centerCol);
+          if (dist <= radius) {
+            grid[r][c] = ".";
+          }
         }
       }
     }
+  }
+
+  collectPathCells() {
+    const cells = [];
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (this.walls[r][c] !== "#") {
+          cells.push({ row: r, col: c });
+        }
+      }
+    }
+    return cells;
   }
 
   isOpen(row, col) {
@@ -190,7 +254,6 @@ class Maze {
   }
 
   draw(ctx, tileSize) {
-    // Draw subtle grid backdrop
     ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -206,7 +269,6 @@ class Maze {
     }
     ctx.stroke();
 
-    // Draw walls
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const x = c * tileSize;
@@ -244,7 +306,6 @@ class Maze {
         }
       }
     }
-
   }
 
   roundRect(ctx, x, y, width, height, radius) {
@@ -278,7 +339,7 @@ class Debugger {
     this.trail = [];
     this.maxTrail = 10;
     this.highlight = 0;
-  this.munchBurst = 0;
+    this.munchBurst = 0;
 
     this.chooseNextDirection();
   }
@@ -290,10 +351,10 @@ class Debugger {
   }
 
   update(delta, bugs, time, onBugEaten) {
-  this.mouthTimer += delta * 5.5;
-  this.eyePulse += delta * 3.2;
-  this.highlight = Math.max(0, this.highlight - delta * 2.8);
-  this.munchBurst = Math.max(0, this.munchBurst - delta * 2.6);
+    this.mouthTimer += delta * 5.5;
+    this.eyePulse += delta * 3.2;
+    this.highlight = Math.max(0, this.highlight - delta * 2.8);
+    this.munchBurst = Math.max(0, this.munchBurst - delta * 2.6);
 
     this.progress += delta * this.speed;
     while (this.progress >= 1) {
@@ -376,8 +437,8 @@ class Debugger {
       const distance = Math.sqrt(dx * dx + dy * dy);
       if (distance < radius) {
         bug.markEaten(time);
-  this.highlight = 1;
-  this.munchBurst = 1;
+        this.highlight = 1;
+        this.munchBurst = 1;
         if (onBugEaten) {
           onBugEaten({ x: bug.position.x, y: bug.position.y });
         }

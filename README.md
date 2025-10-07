@@ -4,7 +4,7 @@ A browser-based, game-inspired screensaver where a debugging pac-creature roams 
 
 ## ✨ Highlights
 
-- **Atmospheric maze** with glowing walls, gradient floors, and a glassy canvas frame.
+- **Procedurally generated maze** that stays fully traversable while keeping the neon glow aesthetic.
 - **Animated debugger** character featuring mouth chomps, eye glints, and a soft particle trail.
 - **Floating software bugs** that bob, glow, and respawn after being eaten.
 - **Spark bursts & ambient particles** to celebrate each successful bug snack.
