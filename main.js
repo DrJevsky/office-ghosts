@@ -1,4 +1,5 @@
 import { Screensaver } from "./src/screensaver.js";
+import { setupAutoRefresh } from "./src/refresh.js";
 
 const canvas = document.getElementById("screensaver");
 const screensaver = new Screensaver(canvas);
@@ -14,3 +15,5 @@ window.addEventListener("resize", resize);
 resize();
 
 screensaver.start();
+
+setupAutoRefresh(window);
