@@ -182,8 +182,8 @@ class Maze {
       }
     }
 
-    this.addLoops(grid, Math.floor((rows * cols) * 0.12));
-    this.addRooms(grid);
+    this.addLoops(grid, Math.floor((rows * cols) * 0.08));
+    this.scatterPocketLoops(grid, Math.floor((rows * cols) * 0.04));
     return grid;
   }
 
@@ -197,29 +197,99 @@ class Maze {
 
       const vertical = grid[r - 1][c] === "." && grid[r + 1][c] === ".";
       const horizontal = grid[r][c - 1] === "." && grid[r][c + 1] === ".";
-      if (vertical || horizontal) {
+      if ((vertical || horizontal) && !this.wouldCreatePocket(grid, r, c)) {
         grid[r][c] = ".";
       }
     }
   }
 
-  addRooms(grid) {
+  scatterPocketLoops(grid, attempts) {
     const rows = grid.length;
     const cols = grid[0].length;
-    const radius = Math.floor(Math.min(rows, cols) / 6);
-    const centerRow = Math.floor(rows / 2);
-    const centerCol = Math.floor(cols / 2);
+    for (let i = 0; i < attempts; i++) {
+      const r = 1 + Math.floor(Math.random() * (rows - 2));
+      const c = 1 + Math.floor(Math.random() * (cols - 2));
+      if (grid[r][c] !== "#") continue;
 
-    for (let r = centerRow - radius; r <= centerRow + radius; r++) {
-      for (let c = centerCol - radius; c <= centerCol + radius; c++) {
-        if (r > 0 && r < rows - 1 && c > 0 && c < cols - 1) {
-          const dist = Math.hypot(r - centerRow, c - centerCol);
-          if (dist <= radius) {
-            grid[r][c] = ".";
+      const openNeighbors = DIRECTIONS.filter(({ dx, dy }) => grid[r + dy][c + dx] === ".");
+      if (openNeighbors.length >= 2 && !this.wouldCreatePocket(grid, r, c)) {
+        grid[r][c] = ".";
+      }
+    }
+  }
+
+  wouldCreatePocket(grid, row, col) {
+    if (grid[row][col] !== "#") {
+      return false;
+    }
+
+    const rows = grid.length;
+    const cols = grid[0].length;
+
+    const isOpen = (r, c) => {
+      if (r < 0 || r >= rows || c < 0 || c >= cols) {
+        return false;
+      }
+      if (r === row && c === col) {
+        return true;
+      }
+      return grid[r][c] !== "#";
+    };
+
+    const checkRect = (height, width, startRow, startCol) => {
+      for (let dr = 0; dr < height; dr++) {
+        for (let dc = 0; dc < width; dc++) {
+          if (!isOpen(startRow + dr, startCol + dc)) {
+            return false;
           }
         }
       }
+      return true;
+    };
+
+    // 2x2 pockets
+    for (let dr = -1; dr <= 0; dr++) {
+      for (let dc = -1; dc <= 0; dc++) {
+        const baseRow = row + dr;
+        const baseCol = col + dc;
+        if (baseRow < 0 || baseRow + 1 >= rows || baseCol < 0 || baseCol + 1 >= cols) {
+          continue;
+        }
+        if (checkRect(2, 2, baseRow, baseCol)) {
+          return true;
+        }
+      }
     }
+
+    // 2x3 pockets (landscape)
+    for (let dr = -1; dr <= 0; dr++) {
+      for (let dc = -2; dc <= 0; dc++) {
+        const baseRow = row + dr;
+        const baseCol = col + dc;
+        if (baseRow < 0 || baseRow + 1 >= rows || baseCol < 0 || baseCol + 2 >= cols) {
+          continue;
+        }
+        if (checkRect(2, 3, baseRow, baseCol)) {
+          return true;
+        }
+      }
+    }
+
+    // 3x2 pockets (portrait)
+    for (let dr = -2; dr <= 0; dr++) {
+      for (let dc = -1; dc <= 0; dc++) {
+        const baseRow = row + dr;
+        const baseCol = col + dc;
+        if (baseRow < 0 || baseRow + 2 >= rows || baseCol < 0 || baseCol + 1 >= cols) {
+          continue;
+        }
+        if (checkRect(3, 2, baseRow, baseCol)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   collectPathCells() {
